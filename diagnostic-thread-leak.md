@@ -185,6 +185,93 @@ Mesmo call stack repetido?
 
 ---
 
+## 5. Coleta insumo para visualizar no dotTrace
+
+O dotTrace resolve símbolos gerenciados e exibe timeline de threads, call stacks completos e tempo em cada estado — mais visual que o `dotnet-dump` para identificar thread leak.
+
+### 5.1 Opção A — Coleta direto pelo dotTrace (recomendado)
+
+É o caminho mais simples e já entrega símbolos resolvidos sem conversão.
+
+**No Rider:**
+`Run` → `Attach to Process` → seleciona o processo da API → modo **Sampling** → `Run`
+
+Enquanto o dotTrace coleta, bate no endpoint de thread leak. Após 20-30 segundos clica em `Stop`.
+
+**No dotTrace standalone:**
+```bash
+# Anexa ao processo em modo Sampling
+dotTrace attach <pid> --save-to=~/diagnostics/threadleak.dtp
+```
+
+---
+
+### 5.2 Opção B — Coleta via `dotnet-trace` e abre no dotTrace
+
+Use quando não for possível anexar o dotTrace diretamente ao processo.
+
+```bash
+# Coleta com provider que inclui sampling gerenciado
+dotnet-trace collect --process-id <pid> \
+  --providers "Microsoft-Windows-DotNETRuntime:0x1CCBD:5,Microsoft-DotNETCore-SampleProfiler:0xF00000000000:5" \
+  --duration 00:00:30 \
+  --output ~/diagnostics/threadleak.nettrace
+```
+
+Abre o `.nettrace` no dotTrace:
+`File` → `Open` → seleciona o arquivo `.nettrace`
+
+> ⚠️ Arquivos `.nettrace` abertos no dotTrace podem mostrar `[Unresolved]` no call stack — prefira a Opção A sempre que possível.
+
+---
+
+### 5.3 O que observar no dotTrace após abrir
+
+**Timeline (painel central):**
+- Dezenas de threads `.NET` com tempo idêntico em estado `Sleep`
+- Padrão visual: muitas linhas horizontais paralelas da mesma cor = threads bloqueadas simultaneamente
+
+```
+ID       Name      ms      %
+2710002  .NET    3,157ms   ▓▓▓▓▓▓▓▓▓▓
+2710003  .NET    3,157ms   ▓▓▓▓▓▓▓▓▓▓   ← mesmo tempo = mesmo comportamento
+2710004  .NET    3,157ms   ▓▓▓▓▓▓▓▓▓▓
+...
+```
+
+**Subsystems (painel esquerdo):**
+```
+Sleep       99.9%   ← threads bloqueadas, sem trabalho útil
+GC Wait      0.01%
+```
+
+**Call Stack (painel direito) — seleciona qualquer thread suspeita:**
+```
+System.Threading.Thread.Sleep
+  ThreadLeakService.RecurseAndSleep(Int32, Int32)
+    ThreadLeakService.RecurseAndSleep(Int32, Int32)   ← recursão profunda
+      ThreadLeakService.RecurseAndSleep(Int32, Int32)
+        ...
+```
+
+**Filtros úteis no dotTrace:**
+- `Thread State` → filtra por `Waiting` para isolar threads bloqueadas
+- `Visible Threads` → seleciona apenas `.NET` para excluir threads nativas do runtime
+- Clica em `Flame Graph` no painel de Call Stack para visualização hierárquica
+
+---
+
+### 5.4 Diferença entre threads `.NET` e `Native` no dotTrace
+
+| Tipo | Origem | Call Stack | Quando investigar |
+|---|---|---|---|
+| `.NET` | `new Thread()`, ThreadPool, runtime gerenciado | Resolvido — mostra métodos C# | Sempre — é onde está seu código |
+| `Native` | Runtime interno, Kestrel I/O, libs nativas | `[Unresolved]` ou símbolos nativos | Apenas se suspeitar de interop ou problema no próprio runtime |
+
+> Threads leaked via `new Thread()` sempre aparecem como `.NET` — foque nelas.
+
+---
+
 ## Referência rápida — comandos dentro do `dotnet-dump analyze`
 
 | Comando | O que faz |
