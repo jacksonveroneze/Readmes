@@ -263,10 +263,32 @@ System.Threading.Thread.Sleep
 
 ### 5.4 Diferença entre threads `.NET` e `Native` no dotTrace
 
+### 5.4 Tipos de threads no dotTrace
+
 | Tipo | Origem | Call Stack | Quando investigar |
 |---|---|---|---|
-| `.NET` | `new Thread()`, ThreadPool, runtime gerenciado | Resolvido — mostra métodos C# | Sempre — é onde está seu código |
-| `Native` | Runtime interno, Kestrel I/O, libs nativas | `[Unresolved]` ou símbolos nativos | Apenas se suspeitar de interop ou problema no próprio runtime |
+| `.NET` | `new Thread()`, ThreadPool workers, tasks | Resolvido — mostra métodos C# | Sempre — é onde está seu código |
+| `Native` | Runtime interno, libs nativas, interop | `[Unresolved]` ou símbolos nativos | Suspeita de problema em interop ou no próprio runtime |
+| `Main` | Thread principal do processo — `Program.cs` | Resolvido | Se a thread principal estiver bloqueada ou com alta latência |
+| `CLR Worker` | Threads internas do CLR — GC, JIT, type loader | Parcialmente resolvido | Pausas longas de GC ou alto tempo de JIT compilation |
+| `JIT Thread` | Compilação JIT em background (.NET 6+) | Parcialmente resolvido | Alto consumo de CPU no startup ou primeiro acesso a métodos |
+| `Finalizer` | Thread única do GC responsável por finalizers | Resolvido | `finalization-pending-count` alto ou objetos com `~Destructor` acumulando |
+| `Console` | Thread de I/O do console — Kestrel logging | Nativo | Raramente — apenas se I/O de log estiver bloqueando |
+| `Kestrel` | Worker threads do servidor HTTP | Resolvido | Latência de requests ou saturação de conexões |
+| `Timer` | Callbacks de `System.Threading.Timer` | Resolvido | `dotnet.timer.count` alto — timers sem dispose acumulando |
+
+---
+
+**Threads que indicam problema quando aparecem em quantidade:**
+
+| Tipo | Contagem normal | Sinal de problema |
+|---|---|---|
+| `.NET` genérico | 20–40 | Dezenas a centenas = thread leak via `new Thread()` |
+| `CLR Worker` | 2–4 | Acima de 8 = pressão no GC ou JIT intenso |
+| `Finalizer` | 1 (sempre) | Mais de 1 = bug no runtime; se lenta = finalizer queue saturada |
+| `Timer` | Variável | Crescimento contínuo = `System.Threading.Timer` sem dispose |
+
+> A `Finalizer` thread é sempre única — se o dotTrace mostrar mais de uma, é bug do runtime, não do seu código.
 
 > Threads leaked via `new Thread()` sempre aparecem como `.NET` — foque nelas.
 
