@@ -184,6 +184,9 @@ Filtros úteis:
 > dumpheap -type Customer -stat    # filtra por substring do nome
 > dumpheap -mt 72767d57afa0        # filtra pela Method Table (coluna MT do -stat)
 > dumpheap -min 85000              # só objetos que foram para LOH
+> dumpheap -type Free -stat        # buracos entre objetos vivos (fragmentação)
+> eeheap -gc                       # segmentos, tamanho e limites de cada geração
+> gcwhere 723751e6ffd8             # em qual geração/segmento o objeto está
 ```
 
 ---
@@ -452,7 +455,7 @@ gen2 sobe e não cai após ociosidade?
 | **Heap cresce?** | Sim, continuamente | Pode não crescer |
 | **OOM ocorre por** | Esgotamento total | Falta de bloco contíguo |
 | **GC ajuda?** | Não (objetos estão "vivos") | Parcialmente (compactação) |
-| **Ferramenta** | `gcroot` (quem referencia?) | `dumpheap -type Free`, `fragmentation.size` |
+| **Ferramenta** | `gcroot` (quem referencia?) | `dumpheap -type Free`, `eeheap -gc`, `fragmentation.size` |
 
 ---
 
