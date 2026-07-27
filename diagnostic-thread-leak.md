@@ -2,8 +2,10 @@
 
 ## 0. Pré-requisitos
 
+### Até .NET 9
+
 ```bash
-# Instala as ferramentas se ainda não tiver
+# Instala as ferramentas globalmente
 dotnet tool install -g dotnet-dump
 dotnet tool install -g dotnet-stack
 dotnet tool install -g dotnet-counters
@@ -14,6 +16,22 @@ dotnet tool list -g
 # Descobre o PID da API
 dotnet-counters ps
 ```
+
+### .NET 10+
+
+No .NET 10, o comando `dnx` (alias para `dotnet tool exec`) executa qualquer ferramenta
+diretamente do NuGet cache, sem instalação global prévia:
+
+```bash
+# Descobre o PID — sem instalar nada
+dnx dotnet-counters ps
+
+# Forma completa equivalente
+dotnet tool exec dotnet-counters -- ps
+```
+
+> Para ferramentas de uso diário, `dotnet tool install -g` ainda é recomendado.
+> O `dnx` é ideal para execução pontual, CI/CD efêmero e ambientes sem persistência.
 
 ---
 
