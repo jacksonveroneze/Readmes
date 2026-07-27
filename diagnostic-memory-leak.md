@@ -2,8 +2,10 @@
 
 ## 0. Pré-requisitos
 
+### Até .NET 9
+
 ```bash
-# Instala as ferramentas se ainda não tiver
+# Instala as ferramentas globalmente
 dotnet tool install -g dotnet-counters
 dotnet tool install -g dotnet-gcdump
 dotnet tool install -g dotnet-dump
@@ -14,6 +16,22 @@ dotnet tool list -g
 # Descobre o PID da API
 dotnet-counters ps
 ```
+
+### .NET 10+
+
+No .NET 10, o comando `dnx` (alias para `dotnet tool exec`) executa qualquer ferramenta
+diretamente do NuGet cache, sem instalação global prévia:
+
+```bash
+# Descobre o PID — sem instalar nada
+dnx dotnet-counters ps
+
+# Forma completa equivalente
+dotnet tool exec dotnet-counters -- ps
+```
+
+> Para ferramentas de uso diário, `dotnet tool install -g` ainda é recomendado.
+> O `dnx` é ideal para execução pontual, CI/CD efêmero e ambientes sem persistência.
 
 ---
 
@@ -472,6 +490,20 @@ docker cp <container_id>:/app/core_20260715_000351 ./dump.dmp
 
 **Dockerfile com ferramentas embutidas:**
 
+**Até .NET 9:**
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+
+RUN dotnet tool install --tool-path /tools dotnet-dump
+RUN dotnet tool install --tool-path /tools dotnet-gcdump
+RUN dotnet tool install --tool-path /tools dotnet-counters
+
+ENV PATH="/tools:${PATH}"
+```
+
+**.NET 10+ — com pré-instalação (recomendado para imagens sem acesso à internet em runtime):**
+
 ```dockerfile
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 
@@ -480,6 +512,22 @@ RUN dotnet tool install --tool-path /tools dotnet-gcdump
 RUN dotnet tool install --tool-path /tools dotnet-counters
 
 ENV PATH="/tools:${PATH}"
+```
+
+**.NET 10+ — via `dnx` em imagem com SDK (sem pré-instalação):**
+
+```dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS diagnostics
+
+# dnx está no PATH do SDK — ferramentas baixadas do NuGet cache sob demanda
+# Útil para imagens de diagnóstico/debugging; não indicado para runtime de produção
+```
+
+Executar dentro do container com `dnx`:
+
+```bash
+docker exec -it <container_id> dnx dotnet-gcdump collect -p 1
+docker exec -it <container_id> dnx dotnet-dump collect -p 1
 ```
 
 > Alternativa sem modificar a imagem: `dotnet-monitor` como sidecar, expondo coleta via HTTP.
